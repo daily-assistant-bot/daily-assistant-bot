@@ -5,7 +5,7 @@ dotenv.config();
 import { initializeBot } from "./bot/telegram";
 import { debugCalendar, fetchTodaysTasks, fetchWeather } from "./services/calendarService";
 import { fetchDailyNews } from "./services/newsService";
-import { fetchUnansweredEmails } from "./services/emailService";
+import { fetchUnansweredEmails, debugEmail } from "./services/emailService";
 import { fetchUnansweredWhatsApp } from "./services/whatsappService";
 import { formatDailyMessage } from "./services/messageFormatter";
 import TelegramBot from "node-telegram-bot-api";
@@ -91,6 +91,20 @@ function main() {
 
     console.log("=== /test command finished ===");
     bot.sendMessage(msg.chat.id, lines.join("\n\n"));
+  });
+
+  bot.onText(/\/emaildebug$/, async (msg) => {
+    bot.sendMessage(msg.chat.id, "🔍 Comprobando email... espera.");
+    try {
+      const info = await debugEmail();
+      if (info.length > 4096) {
+        bot.sendMessage(msg.chat.id, info.substring(0, 4096));
+      } else {
+        bot.sendMessage(msg.chat.id, info);
+      }
+    } catch (e) {
+      bot.sendMessage(msg.chat.id, `Email debug error: ${(e as Error).message}`);
+    }
   });
 
   const server = http.createServer((req, res) => {
