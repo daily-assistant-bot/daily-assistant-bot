@@ -1,11 +1,11 @@
 import cron from "node-cron";
 import TelegramBot from "node-telegram-bot-api";
 import { DailySummary } from "../types";
-import { fetchDailyNews } from "./newsService";
-import { fetchTodaysTasks, fetchWeather } from "./calendarService";
-import { fetchUnansweredEmails } from "./emailService";
-import { fetchUnansweredWhatsApp } from "./whatsappService";
-import { formatDailyMessage } from "./messageFormatter";
+import { fetchDailyNews } from "../services/newsService";
+import { fetchTodaysTasks, fetchWeather } from "../services/calendarService";
+import { fetchUnansweredEmails } from "../services/emailService";
+import { fetchUnansweredWhatsApp } from "../services/whatsappService";
+import { formatDailyMessage } from "../services/messageFormatter";
 
 const DEFAULT_CITY = process.env.WEATHER_CITY || "Madrid";
 
