@@ -1,11 +1,13 @@
 import TelegramBot from "node-telegram-bot-api";
-import { startDailyScheduler } from "../config/scheduler";
-import { fetchTodaysTasks } from "../services/calendarService";
+import { startDailyScheduler, buildDailySummary } from "../config/scheduler";
+import { fetchTodaysTasks, fetchWeather } from "../services/calendarService";
 import { fetchUnansweredEmails } from "../services/emailService";
 import { fetchUnansweredWhatsApp } from "../services/whatsappService";
 import { fetchDailyNews } from "../services/newsService";
 import { DailySummary } from "../types";
 import { formatDailyMessage } from "../services/messageFormatter";
+
+const DEFAULT_CITY = process.env.WEATHER_CITY || "Madrid";
 
 function createBot(): TelegramBot {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -18,11 +20,12 @@ function createBot(): TelegramBot {
 }
 
 async function sendCurrentSummary(bot: TelegramBot, chatId: number): Promise<void> {
-  const [news, tasks, emails, whatsapp] = await Promise.allSettled([
+  const [news, tasks, emails, whatsapp, weatherResult] = await Promise.allSettled([
     fetchDailyNews(),
     fetchTodaysTasks(),
     fetchUnansweredEmails(),
     fetchUnansweredWhatsApp(),
+    fetchWeather(DEFAULT_CITY),
   ]);
 
   const summary: DailySummary = {
@@ -33,7 +36,8 @@ async function sendCurrentSummary(bot: TelegramBot, chatId: number): Promise<voi
     whatsapp: whatsapp.status === "fulfilled" ? whatsapp.value : [],
   };
 
-  const message = formatDailyMessage(summary);
+  const weather = weatherResult.status === "fulfilled" ? weatherResult.value : "";
+  const message = formatDailyMessage(summary, weather);
 
   await bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
 }
@@ -42,12 +46,13 @@ export function initializeBot(): TelegramBot {
   const bot = createBot();
 
   bot.onText(/\/start/, (msg) => {
-    const welcome = `\xa1Hola! Soy tu asistente diario.\n\n` +
-      `\xa0Cada d\xeda a las 6:10 AM te enviar\xe9:\n` +
-      `\ud83d\udcf0 Las noticias m\xe1s relevantes\n` +
-      `\u2705 Tus tareas del d\xeda (Google Calendar)\n` +
-      `\u2709\ufe0f Correos sin responder\n` +
-      `\ud83d\udcf1 Mensajes de WhatsApp pendientes\n\n` +
+    const welcome = `¡Hola! Soy tu asistente diario.\n\n` +
+      `Cada día a las 6:10 AM te enviaré:\n` +
+      `📰 Las noticias más relevantes\n` +
+      `🌤️ El tiempo en ${DEFAULT_CITY}\n` +
+      `✅ Tus tareas del día (Google Calendar)\n` +
+      `✉️ Correos sin responder\n` +
+      `📱 Mensajes de WhatsApp pendientes\n\n` +
       `Usa /status para ver tu resumen ahora.`;
     bot.sendMessage(msg.chat.id, welcome);
   });

@@ -1,29 +1,36 @@
 import cron from "node-cron";
 import TelegramBot from "node-telegram-bot-api";
 import { DailySummary } from "../types";
-import { fetchDailyNews } from "../services/newsService";
-import { fetchTodaysTasks } from "../services/calendarService";
-import { fetchUnansweredEmails } from "../services/emailService";
-import { fetchUnansweredWhatsApp } from "../services/whatsappService";
-import { formatDailyMessage } from "../services/messageFormatter";
+import { fetchDailyNews } from "./newsService";
+import { fetchTodaysTasks, fetchWeather } from "./calendarService";
+import { fetchUnansweredEmails } from "./emailService";
+import { fetchUnansweredWhatsApp } from "./whatsappService";
+import { formatDailyMessage } from "./messageFormatter";
 
-async function buildDailySummary(): Promise<DailySummary> {
+const DEFAULT_CITY = process.env.WEATHER_CITY || "Madrid";
+
+async function buildDailySummary(): Promise<{ summary: DailySummary; weather: string }> {
   const today = new Date();
 
-  const [news, tasks, emails, whatsapp] = await Promise.allSettled([
+  const [news, tasks, emails, whatsapp, weatherResult] = await Promise.allSettled([
     fetchDailyNews(),
     fetchTodaysTasks(),
     fetchUnansweredEmails(),
     fetchUnansweredWhatsApp(),
+    fetchWeather(DEFAULT_CITY),
   ]);
 
-  return {
+  const summary: DailySummary = {
     date: today.toISOString(),
     news: news.status === "fulfilled" ? news.value : [],
     tasks: tasks.status === "fulfilled" ? tasks.value : [],
     emails: emails.status === "fulfilled" ? emails.value : [],
     whatsapp: whatsapp.status === "fulfilled" ? whatsapp.value : [],
   };
+
+  const weather = weatherResult.status === "fulfilled" ? weatherResult.value : "";
+
+  return { summary, weather };
 }
 
 export function startDailyScheduler(bot: TelegramBot): void {
@@ -31,8 +38,8 @@ export function startDailyScheduler(bot: TelegramBot): void {
 
   cron.schedule(cronExpression, async () => {
     try {
-      const summary = await buildDailySummary();
-      const message = formatDailyMessage(summary);
+      const { summary, weather } = await buildDailySummary();
+      const message = formatDailyMessage(summary, weather);
 
       const chatIds = process.env.TELEGRAM_USER_IDS?.split(",") || [];
 
@@ -56,3 +63,5 @@ export function startDailyScheduler(bot: TelegramBot): void {
     }
   });
 }
+
+export { buildDailySummary };

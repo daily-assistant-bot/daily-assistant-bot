@@ -1,6 +1,6 @@
 import { DailySummary } from "../types";
 
-export function formatDailyMessage(summary: DailySummary): string {
+export function formatDailyMessage(summary: DailySummary, weather?: string): string {
   const lines: string[] = [];
 
   const dayName = new Date().toLocaleDateString("es-ES", {
@@ -10,36 +10,43 @@ export function formatDailyMessage(summary: DailySummary): string {
     year: "numeric",
   });
 
-  lines.push(`\ud83d\udcc5 *Buenos d\xedas! Resumen del ${dayName}*`);
+  lines.push(`📅 *Buenos días! Resumen del ${dayName}*`);
   lines.push("");
 
-  lines.push(`\ud83d\udcf0 *NOTICIAS DEL D\xcdA*`);
-  lines.push("\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501");
+  if (weather) {
+    lines.push(`🌤️ *EL TIEMPO*`);
+    lines.push("━━━━━━━━━━━━━━━━━━━━");
+    lines.push(weather);
+    lines.push("");
+  }
+
+  lines.push(`📰 *NOTICIAS DEL DÍA*`);
+  lines.push("━━━━━━━━━━━━━━━━━━━━");
   if (summary.news.length === 0) {
     lines.push("No hay noticias disponibles.");
   } else {
     summary.news.forEach((item, i) => {
       lines.push(`${i + 1}. *${item.title}*`);
       if (item.summary) lines.push(`   _${item.summary}_`);
-      lines.push(`   [Leer m\xe1s](${item.url})`);
+      lines.push(`   [Leer más](${item.url})`);
       lines.push("");
     });
   }
 
-  lines.push(`\u2705 *TAREAS DEL D\xcdA*`);
-  lines.push("\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501");
+  lines.push(`✅ *TAREAS DEL DÍA*`);
+  lines.push("━━━━━━━━━━━━━━━━━━━━");
   if (summary.tasks.length === 0) {
     lines.push("No hay tareas programadas para hoy.");
   } else {
     summary.tasks.forEach((task) => {
-      lines.push(`\u23f0 *${task.time}* - ${task.title}`);
-      if (task.location) lines.push(`   \ud83d\udccd ${task.location}`);
+      lines.push(`⏰ *${task.time}* - ${task.title}`);
+      if (task.location) lines.push(`   📍 ${task.location}`);
     });
   }
   lines.push("");
 
-  lines.push(`\u2709\ufe0f *CORREOS PENDIENTES*`);
-  lines.push("\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501");
+  lines.push(`✉️ *CORREOS PENDIENTES*`);
+  lines.push("━━━━━━━━━━━━━━━━━━━━");
   if (summary.emails.length === 0) {
     lines.push("No hay correos nuevos sin responder.");
   } else {
@@ -51,8 +58,8 @@ export function formatDailyMessage(summary: DailySummary): string {
     });
   }
 
-  lines.push(`\ud83d\udcf1 *WHATSAPP PENDIENTE*`);
-  lines.push("\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501");
+  lines.push(`📱 *WHATSAPP PENDIENTE*`);
+  lines.push("━━━━━━━━━━━━━━━━━━━━");
   if (summary.whatsapp.length === 0) {
     lines.push("No hay mensajes de WhatsApp pendientes.");
   } else {
