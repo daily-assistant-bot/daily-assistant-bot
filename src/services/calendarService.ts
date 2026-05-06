@@ -4,6 +4,17 @@ import { TaskItem } from "../types";
 
 const GOOGLE_CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || "info@vitavaga.com";
 
+function getMadridDate() {
+  const now = new Date();
+  const madridStr = now.toLocaleString("en-US", { timeZone: "Europe/Madrid" });
+  const madridDate = new Date(madridStr);
+  return {
+    full: now,
+    startOfDay: new Date(madridDate.getFullYear(), madridDate.getMonth(), madridDate.getDate()),
+    endOfDay: new Date(madridDate.getFullYear(), madridDate.getMonth(), madridDate.getDate() + 1),
+  };
+}
+
 function getCalendarClient() {
   const privateKey = (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n");
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL || "";
@@ -53,11 +64,9 @@ export async function debugCalendar(): Promise<string> {
   lines.push("Client created OK");
 
   try {
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const { startOfDay, endOfDay } = getMadridDate();
 
-    lines.push(`Searching: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
+    lines.push(`Searching (Madrid): ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
 
     const listRes = await calendar.calendarList.list();
     const calendars = listRes.data.items || [];
@@ -102,9 +111,7 @@ export async function fetchTodaysTasks(): Promise<TaskItem[]> {
   if (!calendar) return [];
 
   try {
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const { startOfDay, endOfDay } = getMadridDate();
 
     const response = await calendar.events.list({
       calendarId: GOOGLE_CALENDAR_ID,
@@ -124,6 +131,7 @@ export async function fetchTodaysTasks(): Promise<TaskItem[]> {
           ? new Date(event.start.dateTime).toLocaleTimeString("es-ES", {
               hour: "2-digit",
               minute: "2-digit",
+              timeZone: "Europe/Madrid",
             })
           : "Todo el día",
         location: event.location || undefined,
@@ -144,8 +152,10 @@ export async function fetchWeather(city: string): Promise<string> {
 
   try {
     const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric&lang=es`;
+    console.log("OpenWeather: fetching for", city);
     const raw = await httpsGet(url, "");
     const data = JSON.parse(raw);
+    console.log("OpenWeather: response code", data.cod, data.message || "");
 
     if (data.cod !== 200) {
       throw new Error(data.message || "OpenWeather API error");
