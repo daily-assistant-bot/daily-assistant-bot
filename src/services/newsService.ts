@@ -1,4 +1,15 @@
+import https from "https";
 import { NewsItem } from "../types";
+
+function httpsGet(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => resolve(data));
+    }).on("error", reject);
+  });
+}
 
 export async function fetchDailyNews(): Promise<NewsItem[]> {
   const apiKey = process.env.NEWSAPI_KEY;
@@ -14,19 +25,18 @@ export async function fetchDailyNews(): Promise<NewsItem[]> {
       `q=general&language=en&sortBy=publishedAt&` +
       `from=${today}&pageSize=5&apiKey=${apiKey}`;
 
-    const response = await fetch(url);
+    const raw = await httpsGet(url);
+    const parsed = JSON.parse(raw);
 
-    if (!response.ok) {
-      throw new Error(`NewsAPI returned ${response.status}`);
+    if (parsed.status !== "ok") {
+      throw new Error(`NewsAPI error: ${parsed.message || "unknown"}`);
     }
 
-    const data = await response.json();
-
-    return data.articles
-      .filter((article: Record<string, string | null>) => article.title && article.url)
-      .map((article: Record<string, string | null>) => ({
+    return parsed.articles
+      .filter((article: Record<string, string | null | Record<string, string>>) => article.title && article.url)
+      .map((article: Record<string, string | null | Record<string, string>>) => ({
         title: article.title as string,
-        source: article.source?.name || "Unknown",
+        source: (article.source as Record<string, string>)?.name || "Unknown",
         url: article.url as string,
         summary: article.description || undefined,
       }));

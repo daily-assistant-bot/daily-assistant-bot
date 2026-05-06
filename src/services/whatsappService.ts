@@ -1,4 +1,19 @@
+import https from "https";
 import { WhatsAppItem } from "../types";
+
+function httpsGet(url: string, token: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    https.get(
+      url,
+      { headers: { Authorization: `Bearer ${token}` } },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => resolve(data));
+      },
+    ).on("error", reject);
+  });
+}
 
 export async function fetchUnansweredWhatsApp(): Promise<WhatsAppItem[]> {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -10,18 +25,9 @@ export async function fetchUnansweredWhatsApp(): Promise<WhatsAppItem[]> {
   }
 
   try {
-    const response = await fetch(
-      `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error(`WhatsApp API returned ${response.status}`);
-    }
-
-    const data = await response.json();
+    const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
+    const raw = await httpsGet(url, accessToken);
+    const data = JSON.parse(raw);
     const messages = data.data || [];
 
     return messages
