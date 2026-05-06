@@ -3,10 +3,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import { initializeBot } from "./bot/telegram";
-import { fetchTodaysTasks } from "./services/calendarService";
+import { debugCalendar } from "./services/calendarService";
 import TelegramBot from "node-telegram-bot-api";
-
-let botRef: TelegramBot | null = null;
 
 function main() {
   const requiredVars = ["TELEGRAM_BOT_TOKEN"];
@@ -18,18 +16,12 @@ function main() {
   }
 
   const bot = initializeBot();
-  botRef = bot;
   console.log("Bot iniciado y escuchando mensajes...");
 
   bot.onText(/\/debug/, async (msg) => {
     try {
-      const tasks = await fetchTodaysTasks();
-      const debugMsg =
-        `GOOGLE_CLIENT_EMAIL: ${process.env.GOOGLE_CLIENT_EMAIL || "missing"}\n` +
-        `GOOGLE_PRIVATE_KEY: ${process.env.GOOGLE_PRIVATE_KEY ? "set (len=" + process.env.GOOGLE_PRIVATE_KEY.length + ")" : "missing"}\n` +
-        `Tasks found: ${tasks.length}\n` +
-        `Tasks: ${JSON.stringify(tasks)}`;
-      bot.sendMessage(msg.chat.id, debugMsg);
+      const debugInfo = await debugCalendar();
+      bot.sendMessage(msg.chat.id, debugInfo);
     } catch (error) {
       bot.sendMessage(msg.chat.id, `Debug error: ${(error as Error).message}`);
     }

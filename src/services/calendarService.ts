@@ -7,24 +7,18 @@ function getCalendarClient() {
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL || "";
 
   if (!privateKey || !clientEmail) {
-    console.error("Google Calendar: missing GOOGLE_PRIVATE_KEY or GOOGLE_CLIENT_EMAIL");
-    return null;
+    throw new Error("Missing GOOGLE_PRIVATE_KEY or GOOGLE_CLIENT_EMAIL");
   }
 
-  try {
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: clientEmail,
-        private_key: privateKey,
-      },
-      scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
-    });
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: clientEmail,
+      private_key: privateKey,
+    },
+    scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+  });
 
-    return google.calendar({ version: "v3", auth });
-  } catch (err) {
-    console.error("Google Calendar: failed to create client", err);
-    return null;
-  }
+  return google.calendar({ version: "v3", auth });
 }
 
 function httpsGet(url: string, token: string): Promise<string> {
@@ -41,29 +35,81 @@ function httpsGet(url: string, token: string): Promise<string> {
   });
 }
 
-export async function fetchTodaysTasks(): Promise<TaskItem[]> {
-  console.log("Google Calendar: attempting to fetch today's tasks...");
+export async function debugCalendar(): Promise<string> {
+  const lines: string[] = [];
+
+  lines.push(`Client email: ${process.env.GOOGLE_CLIENT_EMAIL || "missing"}`);
+  lines.push(`Private key: ${process.env.GOOGLE_PRIVATE_KEY ? "set (len=" + process.env.GOOGLE_PRIVATE_KEY.length + ")" : "missing"}`);
 
   const calendar = getCalendarClient();
-
   if (!calendar) {
-    console.error("Google Calendar: client creation failed");
-    return [];
+    lines.push("ERROR: client creation failed");
+    return lines.join("\n");
   }
+
+  lines.push("Client created OK");
 
   try {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-    console.log(`Google Calendar: searching from ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
+    lines.push(`Searching: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
 
-    const calendarListResponse = await calendar.calendarList.list();
-    const calendars = calendarListResponse.data.items || [];
-    console.log(`Google Calendar: user has access to ${calendars.length} calendars`);
-    for (const cal of calendars) {
-      console.log(`  - ${cal.summary} (${cal.id})`);
+    const listRes = await calendar.calendarList.list();
+    const calendars = listRes.data.items || [];
+    lines.push(`Calendars accessible: ${calendars.length}`);
+
+    if (calendars.length === 0) {
+      lines.push("");
+      lines.push("⚠️ NO CALENDARS FOUND");
+      lines.push("The service account email needs to be added to your Google Calendar:");
+      lines.push(`Share your calendar with: ${process.env.GOOGLE_CLIENT_EMAIL}`);
+      lines.push("Permission: 'See all event details'");
+      return lines.join("\n");
     }
+
+    for (const cal of calendars) {
+      lines.push(`  📅 ${cal.summary} (${cal.id})`);
+    }
+
+    const eventsRes = await calendar.events.list({
+      calendarId: "primary",
+      timeMin: startOfDay.toISOString(),
+      timeMax: endOfDay.toISOString(),
+      orderBy: "startTime",
+      singleEvents: true,
+    });
+
+    const events = eventsRes.data.items || [];
+    lines.push(`Events today: ${events.length}`);
+
+    for (const ev of events) {
+      lines.push(`  ${ev.summary || "(no title)"} - ${ev.start?.dateTime || ev.start?.date || "no time"}`);
+    }
+
+    return lines.join("\n");
+  } catch (error) {
+    lines.push(`ERROR: ${(error as Error).message}`);
+    if ("response" in (error as Record<string, unknown>)) {
+      const apiError = error as { response?: { status?: number; data?: string } };
+      if (apiError.response) {
+        lines.push(`API status: ${apiError.response.status}`);
+        lines.push(`Response: ${apiError.response.data?.substring(0, 300)}`);
+      }
+    }
+    return lines.join("\n");
+  }
+}
+
+export async function fetchTodaysTasks(): Promise<TaskItem[]> {
+  const calendar = getCalendarClient();
+  if (!calendar) return [];
+
+  try {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
     const response = await calendar.events.list({
       calendarId: "primary",
@@ -71,15 +117,9 @@ export async function fetchTodaysTasks(): Promise<TaskItem[]> {
       timeMax: endOfDay.toISOString(),
       orderBy: "startTime",
       singleEvents: true,
-      showDeleted: false,
     });
 
     const events = response.data.items || [];
-    console.log(`Google Calendar: found ${events.length} events on primary calendar`);
-
-    if (events.length > 0) {
-      console.log(`Google Calendar: raw events = ${JSON.stringify(events)}`);
-    }
 
     return events
       .filter((event): event is typeof event & { summary: string } => !!event.summary)
@@ -94,15 +134,7 @@ export async function fetchTodaysTasks(): Promise<TaskItem[]> {
         location: event.location || undefined,
       }));
   } catch (error) {
-    const err = error as Error;
-    console.error(`Google Calendar: error - ${err.message}`);
-    if ("response" in (error as Record<string, unknown>)) {
-      const apiError = error as { response?: { status?: number; statusText?: string; data?: string } };
-      if (apiError.response) {
-        console.error(`Google Calendar: API responded ${apiError.response.status} ${apiError.response.statusText}`);
-        console.error(`Google Calendar: response body: ${apiError.response.data}`);
-      }
-    }
+    console.error("Google Calendar error:", (error as Error).message);
     return [];
   }
 }
