@@ -58,19 +58,27 @@ export async function fetchTodaysTasks(): Promise<TaskItem[]> {
 
     console.log(`Google Calendar: searching from ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
 
+    const calendarListResponse = await calendar.calendarList.list();
+    const calendars = calendarListResponse.data.items || [];
+    console.log(`Google Calendar: user has access to ${calendars.length} calendars`);
+    for (const cal of calendars) {
+      console.log(`  - ${cal.summary} (${cal.id})`);
+    }
+
     const response = await calendar.events.list({
       calendarId: "primary",
       timeMin: startOfDay.toISOString(),
       timeMax: endOfDay.toISOString(),
       orderBy: "startTime",
       singleEvents: true,
+      showDeleted: false,
     });
 
     const events = response.data.items || [];
-    console.log(`Google Calendar: found ${events.length} events`);
+    console.log(`Google Calendar: found ${events.length} events on primary calendar`);
 
     if (events.length > 0) {
-      console.log(`Google Calendar: first event = ${JSON.stringify(events[0].summary)}`);
+      console.log(`Google Calendar: raw events = ${JSON.stringify(events)}`);
     }
 
     return events
