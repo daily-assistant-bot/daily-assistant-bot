@@ -153,7 +153,7 @@ export async function fetchWeather(city: string): Promise<string> {
   }
 
   try {
-    const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric&lang=es`;
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=42.1167&lon=-8.85&appid=${apiKey}&units=metric&lang=es`;
     console.log("OpenWeather: requesting", url.replace(apiKey, "***"));
 
     return new Promise<string>((resolve, reject) => {
