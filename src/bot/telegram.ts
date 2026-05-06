@@ -7,7 +7,7 @@ import { fetchDailyNews } from "../services/newsService";
 import { DailySummary } from "../types";
 import { formatDailyMessage } from "../services/messageFormatter";
 
-const DEFAULT_CITY = process.env.WEATHER_CITY || "Madrid";
+const DEFAULT_CITY = process.env.WEATHER_CITY || "Baiona";
 
 function createBot(): TelegramBot {
   const token = process.env.TELEGRAM_BOT_TOKEN;
