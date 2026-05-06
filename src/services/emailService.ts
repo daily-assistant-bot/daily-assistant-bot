@@ -39,7 +39,7 @@ export async function debugEmail(): Promise<string> {
     lines.push("Connected OK");
 
     return new Promise<string>((resolve) => {
-      imap.getBoxes((err: Error | null, boxes: Record<string, Record<string, unknown>>) => {
+      imap.getBoxes((err: Error | null, boxes) => {
         if (err) {
           lines.push("getBoxes error: " + err.message);
           imap.end();
