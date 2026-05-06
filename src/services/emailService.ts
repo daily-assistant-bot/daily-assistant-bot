@@ -1,5 +1,5 @@
 import Imap from "imap";
-import { simpleParser, ParsedMail } from "mailparser";
+import { simpleParser } from "mailparser";
 import { EmailItem } from "../types";
 
 function connectToIMAP(): Promise<Imap> {
@@ -7,7 +7,7 @@ function connectToIMAP(): Promise<Imap> {
     const imap = new Imap({
       user: process.env.EMAIL_USER || "",
       password: process.env.EMAIL_APP_PASSWORD || "",
-      host: process.env.EMAIL_HOST || "imap.mail.me.com",
+      host: process.env.EMAIL_HOST || "imap.ionos.es",
       port: Number(process.env.EMAIL_PORT) || 993,
       tls: true,
       tlsOptions: { rejectUnauthorized: false },
@@ -16,15 +16,6 @@ function connectToIMAP(): Promise<Imap> {
     imap.once("ready", () => resolve(imap));
     imap.once("error", (err: Error) => reject(err));
     imap.connect();
-  });
-}
-
-function parseEmail(messageBuffer: Buffer): Promise<ParsedMail> {
-  return new Promise((resolve, reject) => {
-    simpleParser(messageBuffer, (err: Error | null, parsed) => {
-      if (err) return reject(err);
-      resolve(parsed);
-    });
   });
 }
 
@@ -51,15 +42,19 @@ export async function fetchUnansweredEmails(): Promise<EmailItem[]> {
           }
 
           const emails: EmailItem[] = [];
+          let total = results.length;
+          let processed = 0;
+
           const fetch = imap.fetch(results, { bodies: "" });
 
           fetch.on("message", (msg) => {
+            const chunks: Buffer[] = [];
             msg.on("body", (stream) => {
-              const chunks: Buffer[] = [];
               stream.on("data", (chunk: Buffer) => chunks.push(chunk));
               stream.on("end", async () => {
+                const buffer = Buffer.concat(chunks);
                 try {
-                  const parsed = await parseEmail(Buffer.concat(chunks));
+                  const parsed = await simpleParser(buffer);
                   emails.push({
                     from: parsed.from?.text || "Unknown",
                     subject: parsed.subject || "(Sin asunto)",
@@ -68,13 +63,13 @@ export async function fetchUnansweredEmails(): Promise<EmailItem[]> {
                 } catch {
                   // Skip malformed emails
                 }
+                processed++;
+                if (processed === total) {
+                  imap.end();
+                  resolve(emails);
+                }
               });
             });
-          });
-
-          fetch.on("end", () => {
-            imap.end();
-            resolve(emails);
           });
 
           fetch.on("error", (fetchErr: Error) => {
