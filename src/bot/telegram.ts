@@ -1,6 +1,10 @@
 import TelegramBot from "node-telegram-bot-api";
 import { startDailyScheduler, sendCurrentSummary } from "../config/scheduler";
 import { debugCalendar } from "../services/calendarService";
+import { fetchDailyNews } from "../services/newsService";
+import { fetchUnansweredEmails } from "../services/emailService";
+import { fetchUnansweredWhatsApp } from "../services/whatsappService";
+import { fetchWeather } from "../services/calendarService";
 
 function createBot(): TelegramBot {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -31,12 +35,54 @@ export function initializeBot(): TelegramBot {
     sendCurrentSummary(bot, msg.chat.id);
   });
 
-  bot.onText(/\/debug/, async (msg) => {
+  bot.onText(/\/debug$/, async (msg) => {
+    bot.sendMessage(msg.chat.id, "🔍 Probando todos los servicios... espera un momento.");
+
+    const results: string[] = [];
+
     try {
-      const debugInfo = await debugCalendar();
-      bot.sendMessage(msg.chat.id, debugInfo);
-    } catch (error) {
-      bot.sendMessage(msg.chat.id, `Debug error: ${(error as Error).message}`);
+      const calDebug = await debugCalendar();
+      results.push("📅 CALENDAR:\n" + calDebug);
+    } catch (e) {
+      results.push("📅 CALENDAR ERROR: " + (e as Error).message);
+    }
+
+    try {
+      const weather = await fetchWeather("Baiona");
+      results.push("🌤️ WEATHER: " + (weather || "EMPTY"));
+    } catch (e) {
+      results.push("🌤️ WEATHER ERROR: " + (e as Error).message);
+    }
+
+    try {
+      const news = await fetchDailyNews();
+      results.push(`📰 NEWS: ${news.length} articles`);
+      if (news.length > 0) {
+        results.push(`  1. ${news[0].title}`);
+      }
+    } catch (e) {
+      results.push("📰 NEWS ERROR: " + (e as Error).message);
+    }
+
+    try {
+      const emails = await fetchUnansweredEmails();
+      results.push(`✉️ EMAIL: ${emails.length} unread`);
+    } catch (e) {
+      results.push("✉️ EMAIL ERROR: " + (e as Error).message);
+    }
+
+    try {
+      const wa = await fetchUnansweredWhatsApp();
+      results.push(`📱 WHATSAPP: ${wa.length} messages`);
+    } catch (e) {
+      results.push("📱 WHATSAPP: not configured");
+    }
+
+    const output = results.join("\n\n");
+    if (output.length > 4096) {
+      bot.sendMessage(msg.chat.id, output.substring(0, 4096));
+    } else {
+      bot.sendMessage(msg.chat.id, output);
     }
   });
 
