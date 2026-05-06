@@ -1,3 +1,4 @@
+import http from "http";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -14,6 +15,16 @@ function main() {
 
   const bot = initializeBot();
   console.log("Bot iniciado y escuchando mensajes...");
+
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("OK - Daily Assistant Bot is running");
+  });
+
+  const port = Number(process.env.PORT) || 3000;
+  server.listen(port, () => {
+    console.log(`HTTP server listening on port ${port} (for Render health check)`);
+  });
 }
 
 main();
