@@ -145,6 +145,8 @@ export async function fetchTodaysTasks(): Promise<TaskItem[]> {
 export async function fetchWeather(city: string): Promise<string> {
   const apiKey = process.env.OPENWEATHER_API_KEY;
 
+  console.log("OpenWeather: API key present?", !!apiKey, "length:", apiKey?.length || 0);
+
   if (!apiKey) {
     console.warn("OpenWeather: API key not configured");
     return "";
@@ -152,22 +154,31 @@ export async function fetchWeather(city: string): Promise<string> {
 
   try {
     const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric&lang=es`;
-    console.log("OpenWeather: fetching for", city);
-    const raw = await httpsGet(url, "");
-    const data = JSON.parse(raw);
-    console.log("OpenWeather: response code", data.cod, data.message || "");
+    console.log("OpenWeather: requesting", url.replace(apiKey, "***"));
 
-    if (data.cod !== 200) {
-      throw new Error(data.message || "OpenWeather API error");
-    }
-
-    const temp = Math.round(data.main.temp);
-    const feelsLike = Math.round(data.main.feels_like);
-    const desc = data.weather[0].description;
-    const humidity = data.main.humidity;
-    const wind = Math.round(data.wind.speed * 3.6);
-
-    return `${data.name}: ${desc}, ${temp}°C (sensación ${feelsLike}°C), humedad ${humidity}%, viento ${wind} km/h`;
+    return new Promise<string>((resolve, reject) => {
+      https.get(url, (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          console.log("OpenWeather: raw response (first 200):", data.substring(0, 200));
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.cod !== 200) {
+              throw new Error(parsed.message || "OpenWeather API error");
+            }
+            const temp = Math.round(parsed.main.temp);
+            const feelsLike = Math.round(parsed.main.feels_like);
+            const desc = parsed.weather[0].description;
+            const humidity = parsed.main.humidity;
+            const wind = Math.round(parsed.wind.speed * 3.6);
+            resolve(`${parsed.name}: ${desc}, ${temp}°C (sensación ${feelsLike}°C), humedad ${humidity}%, viento ${wind} km/h`);
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }).on("error", reject);
+    });
   } catch (error) {
     const err = error as Error;
     console.error(`OpenWeather: error - ${err.message}`);
