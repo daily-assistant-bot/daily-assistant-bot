@@ -20,30 +20,42 @@ function connectToIMAP(): Promise<Imap> {
 }
 
 export async function fetchUnansweredEmails(): Promise<EmailItem[]> {
+  console.log(`Email: connecting to ${process.env.EMAIL_HOST || "imap.ionos.es"} as ${process.env.EMAIL_USER || "unknown"}`);
+
   try {
     const imap = await connectToIMAP();
+    console.log("Email: connected successfully");
 
     return new Promise<EmailItem[]>((resolve, reject) => {
-      imap.openBox("INBOX", false, (err: Error | null) => {
+      imap.openBox("INBOX", true, (err: Error | null) => {
         if (err) {
           imap.end();
+          console.error("Email: failed to open INBOX:", err.message);
           return reject(err);
         }
+        console.log("Email: INBOX opened");
 
         const sinceDate = new Date();
         sinceDate.setDate(sinceDate.getDate() - 1);
         const dateStr = sinceDate.toISOString().split("T")[0];
 
         imap.search(["UNSEEN", ["SINCE", dateStr]], (searchErr: Error | null, results: number[]) => {
-          if (searchErr || !results.length) {
+          if (searchErr) {
             imap.end();
-            if (searchErr) return reject(searchErr);
+            console.error("Email: search error:", searchErr.message);
+            return reject(searchErr);
+          }
+
+          if (!results.length) {
+            imap.end();
+            console.log("Email: no unread emails found");
             return resolve([]);
           }
 
+          console.log(`Email: found ${results.length} unread emails`);
           const emails: EmailItem[] = [];
-          let total = results.length;
           let processed = 0;
+          const total = results.length;
 
           const fetch = imap.fetch(results, { bodies: "" });
 
@@ -60,12 +72,14 @@ export async function fetchUnansweredEmails(): Promise<EmailItem[]> {
                     subject: parsed.subject || "(Sin asunto)",
                     date: parsed.date?.toLocaleDateString("es-ES") || "",
                   });
-                } catch {
-                  // Skip malformed emails
+                  console.log(`Email: parsed "${parsed.subject || "(no subject)"}" from ${parsed.from?.text || "unknown"}`);
+                } catch (parseErr) {
+                  console.error("Email: failed to parse message:", parseErr);
                 }
                 processed++;
                 if (processed === total) {
                   imap.end();
+                  console.log(`Email: done, returning ${emails.length} emails`);
                   resolve(emails);
                 }
               });
@@ -74,13 +88,14 @@ export async function fetchUnansweredEmails(): Promise<EmailItem[]> {
 
           fetch.on("error", (fetchErr: Error) => {
             imap.end();
+            console.error("Email: fetch error:", fetchErr.message);
             reject(fetchErr);
           });
         });
       });
     });
   } catch (error) {
-    console.error("Error fetching emails:", error);
+    console.error("Email: connection error:", (error as Error).message);
     return [];
   }
 }

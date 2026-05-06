@@ -19,12 +19,11 @@ export async function fetchDailyNews(): Promise<NewsItem[]> {
   }
 
   try {
-    const today = new Date().toISOString().split("T")[0];
     const url =
-      `https://newsapi.org/v2/everything?` +
-      `q=general&language=en&sortBy=publishedAt&` +
-      `from=${today}&pageSize=5&apiKey=${apiKey}`;
+      `https://newsapi.org/v2/top-headlines?` +
+      `country=es&language=es&pageSize=5&apiKey=${apiKey}`;
 
+    console.log("News: fetching top headlines...");
     const raw = await httpsGet(url);
     const parsed = JSON.parse(raw);
 
@@ -32,7 +31,10 @@ export async function fetchDailyNews(): Promise<NewsItem[]> {
       throw new Error(`NewsAPI error: ${parsed.message || "unknown"}`);
     }
 
-    return parsed.articles
+    const articles = parsed.articles || [];
+    console.log(`News: found ${articles.length} headlines`);
+
+    return articles
       .filter((article: Record<string, string | null | Record<string, string>>) => article.title && article.url)
       .map((article: Record<string, string | null | Record<string, string>>) => ({
         title: article.title as string,
@@ -41,7 +43,7 @@ export async function fetchDailyNews(): Promise<NewsItem[]> {
         summary: article.description || undefined,
       }));
   } catch (error) {
-    console.error("Error fetching news:", error);
+    console.error("Error fetching news:", (error as Error).message);
     return [];
   }
 }
