@@ -2,6 +2,8 @@ import https from "https";
 import { google } from "googleapis";
 import { TaskItem } from "../types";
 
+const GOOGLE_CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || "info@vitavaga.com";
+
 function getCalendarClient() {
   const privateKey = (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n");
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL || "";
@@ -40,6 +42,7 @@ export async function debugCalendar(): Promise<string> {
 
   lines.push(`Client email: ${process.env.GOOGLE_CLIENT_EMAIL || "missing"}`);
   lines.push(`Private key: ${process.env.GOOGLE_PRIVATE_KEY ? "set (len=" + process.env.GOOGLE_PRIVATE_KEY.length + ")" : "missing"}`);
+  lines.push(`Calendar ID: ${GOOGLE_CALENDAR_ID}`);
 
   const calendar = getCalendarClient();
   if (!calendar) {
@@ -58,23 +61,14 @@ export async function debugCalendar(): Promise<string> {
 
     const listRes = await calendar.calendarList.list();
     const calendars = listRes.data.items || [];
-    lines.push(`Calendars accessible: ${calendars.length}`);
-
-    if (calendars.length === 0) {
-      lines.push("");
-      lines.push("⚠️ NO CALENDARS FOUND");
-      lines.push("The service account email needs to be added to your Google Calendar:");
-      lines.push(`Share your calendar with: ${process.env.GOOGLE_CLIENT_EMAIL}`);
-      lines.push("Permission: 'See all event details'");
-      return lines.join("\n");
-    }
+    lines.push(`Calendars in list: ${calendars.length}`);
 
     for (const cal of calendars) {
       lines.push(`  📅 ${cal.summary} (${cal.id})`);
     }
 
     const eventsRes = await calendar.events.list({
-      calendarId: "primary",
+      calendarId: GOOGLE_CALENDAR_ID,
       timeMin: startOfDay.toISOString(),
       timeMax: endOfDay.toISOString(),
       orderBy: "startTime",
@@ -95,7 +89,8 @@ export async function debugCalendar(): Promise<string> {
       const apiError = error as { response?: { status?: number; data?: string } };
       if (apiError.response) {
         lines.push(`API status: ${apiError.response.status}`);
-        lines.push(`Response: ${apiError.response.data?.substring(0, 300)}`);
+        const body = apiError.response.data || "";
+        lines.push(`Response: ${body.substring(0, 500)}`);
       }
     }
     return lines.join("\n");
@@ -112,7 +107,7 @@ export async function fetchTodaysTasks(): Promise<TaskItem[]> {
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
     const response = await calendar.events.list({
-      calendarId: "primary",
+      calendarId: GOOGLE_CALENDAR_ID,
       timeMin: startOfDay.toISOString(),
       timeMax: endOfDay.toISOString(),
       orderBy: "startTime",
